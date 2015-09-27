@@ -1,0 +1,75 @@
+---
+title: "Machine Learning"
+author: "Alexander Kiskin"
+date: "27 сент€бр€ 2015 г."
+output: html_document
+---
+
+##Loading Data
+
+The training data for this project are available here: [https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv]
+
+The test data are available here: [https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv]
+
+```{r warning=FALSE}
+library(caret)
+library(randomForest)
+
+trainingset <- read.csv("pml-training.csv", na.strings=c("NA","#DIV/0!", ""))
+testingset <- read.csv("pml-testing.csv", na.strings=c("NA","#DIV/0!", ""))
+```
+
+
+##Cleaning Data
+To use prediction algorithms we need to exclude all missing values (to be exact - columns with missing values). Additinally we would not use some first columns as predictors, as it makes no sense (like row number, dates, etc.)
+
+```{r}
+# Delete columns with all missing values
+
+drops <- c("X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2", "cvtd_timestamp", "new_window", "num_window")
+trainingset<-trainingset[,!(names(trainingset) %in% drops)]
+testingset<-testingset[,!(names(testingset) %in% drops)]
+
+nacheck = colSums(is.na(trainingset))
+trainingset<-trainingset[,nacheck == 0]
+testingset<-testingset[,nacheck == 0]
+```
+
+##Preparing model
+Splitting training set in 75%-25% chunks.
+
+```{r}
+subsamples <- createDataPartition(y=trainingset$classe, p=0.75, list=FALSE)
+subTraining <- trainingset[subsamples, ] 
+subTesting <- trainingset[-subsamples, ]
+```
+
+We try to use Random forest on 75% chunk as it is known to be one of the most promising at the time. Then we build prediction matrix to chech accuracy using 25% chunk.
+
+```{r}
+modelRF <- randomForest(classe ~ . , data=subTraining)
+
+predictionRF <- predict(modelRF, subTesting)
+
+confusionMatrix(predictionRF, subTesting$classe)
+```
+
+Accuracy for Random Forest model was 0.994. The expected out-of-sample error is estimated at 0.006, or 0.6%.
+
+##Predicting
+Now we will predict results for testingset and write them down into files.
+
+```{r}
+predicted <- predict(modelRF, testingset)
+predicted
+
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+pml_write_files(as.vector(predicted))
+
+```
